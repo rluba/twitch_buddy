@@ -1,3 +1,6 @@
 [submodule "modules/twitch_irc"]
 	path = modules/twitch_irc
 	url = git@github.com:rluba/twitch_irc.git
+[submodule "modules/uniform"]
+	path = modules/uniform
+	url = git@github.com:rluba/uniform.git
