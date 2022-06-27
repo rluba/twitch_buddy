@@ -1,9 +1,10 @@
-CHANNEL :: "#raphael_luba";
 CREDENTIALS_FILENAME :: ".twitch_buddy_credentials";
 COMMANDS_PATH :: "config/commands.txt";
 PATTERNS_PATH :: "config/patterns.txt";
 
 twitch: Twitch_Chat;
+
+channel: string;
 
 commands: Table(string, string);
 commands_text: string; // Just for freeing
@@ -15,17 +16,47 @@ Pattern_Response :: struct {
 patterns: [..] Pattern_Response;
 patterns_text: string; // Just for freeing
 
+Args :: struct {
+    verbose: bool;
+}
+
 main :: () {
     #if OS == .MACOS {
         init_macos();
     }
+
+    success, args := parse_arguments(Args);
+
     credentials_path := tprint("%/%", get_home_directory(), CREDENTIALS_FILENAME);
-    credentials_string, success := read_entire_file(credentials_path);
+    credentials_file_content: string;
+    credentials_file_content, success = read_entire_file(credentials_path);
     if !success {
         log_error("Couldn’t read Twitch credentials from \"%\"", credentials_path);
         exit(1);
     }
 
+    found: bool;
+    credentials: string;
+    username: string;
+    password: string;
+    found, credentials, channel = split_from_left(credentials_file_content, #char "\n");
+    found, username, password = split_from_left(credentials, #char " ");
+    if !found {
+        log_error("Credentails in \"%\" have an invalid format. Expected: <username> <password>", credentials_path);
+        exit(1);
+    }
+
+    password = trim(password, " \t\r\n");
+    channel = trim(channel, " \t\r\n");
+    if !begins_with(password, "oauth:") {
+        log_error("Invalid credentials. Expected password to begin with \"oauth:\".");
+        exit(1);
+    }
+    if !begins_with(channel, "#") {
+        log_error("Invalid credentials. Expected channel name to begin with \"#\".");
+        exit(1);
+    }
+    
     watcher: File_Watcher;
     init(*watcher, on_file_changed);
     add_directories(*watcher, "config");
@@ -33,19 +64,11 @@ main :: () {
     reload_commands();
     reload_patterns();
 
-    found, username, password := split_from_left(credentials_string, #char " ");
-    if !found {
-        log_error("Credentails in \"%\" have an invalid format. Expected: <username> <password>", credentials_path);
-        exit(1);
-    }
-    found, password = split_from_left(password, #char "\n");
-    
-    init(*twitch, event_callback, verbose = true);
+    init(*twitch, event_callback, verbose = args.verbose);
     success = connect(*twitch, username, password);
     if !success then exit(1);
 
     while true {
-        log("Updating…");
         process_changes(*watcher);
 
         success = update(*twitch, 5000);
@@ -71,9 +94,9 @@ on_file_changed :: (watcher: *File_Watcher, change: *File_Change) {
 event_callback :: (event: Twitch_Event) {
     if event.type == {
         case .GLOBALUSERSTATE;
-            success := cmd_join(*twitch, CHANNEL);
+            success := cmd_join(*twitch, channel);
             if !success {
-                log_error("Couldn’t join channel %", CHANNEL);
+                log_error("Couldn’t join channel %", channel);
                 exit(1);
             }
         case .PRIVMSG;
@@ -103,13 +126,13 @@ event_callback :: (event: Twitch_Event) {
                     }
             }
         case;
-            log("Got event: %", event);
+            log("Got event of type %: %", event.type, event.raw);
     }
 }
 
 respond :: (message: string, response: string) {
     log("Responding: %", response);
-    success := cmd_privmsg(*twitch, CHANNEL, response);
+    success := cmd_privmsg(*twitch, channel, response);
     if !success {
         log_error("Couldn’t send response to \"%\"", message);
     }
@@ -132,7 +155,7 @@ send_command_list :: () {
         append(*builder, it);
     }
     message := builder_to_string(*builder, temp);
-    cmd_privmsg(*twitch, CHANNEL, message);
+    cmd_privmsg(*twitch, channel, message);
 }
 
 reload_commands :: () {
@@ -228,6 +251,7 @@ reload_patterns :: () {
 }
 
 #import "Basic";
+#import "Command_Line";
 #import "File";
 #import "String";
 #import "System";

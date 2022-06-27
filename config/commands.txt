@@ -1,4 +1,4 @@
-!project        We’re currently programing this very bot in Jai!
+!project                We’re currently programing this very bot in Jai!
 
-!jai            JAI is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
-!sellout        Have Amazon Prime and want to sub for free? Link your account at https://twitch.amazon.com/prime and then go to https://twitch.tv/raphael_luba/subscribe
+!jai                    JAI is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
+!sellout,!bezosmoney    Have Amazon Prime and want to sub for free? Link your account at https://twitch.amazon.com/prime and then go to https://twitch.tv/raphael_luba/subscribe
