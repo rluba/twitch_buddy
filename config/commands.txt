@@ -1,0 +1,5 @@
+!project    We’re currently programing this very bot in Jai!
+
+!jai        JAI is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
+!vim        Raphael is using VimR (NeoVim) with the gruvbox theme. If you care about those things, you can find his (messy) neovim config at https://github.com/rluba/neovim-config 
+!m1         Raphael is working on a M1 MacBook Pro. The compiler does note yet run natively on M1.
