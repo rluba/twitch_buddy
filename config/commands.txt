@@ -3,3 +3,4 @@
 !jai                    JAI is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
 !sellout,!bezosmoney    Have Amazon Prime and want to sub for free? Link your account at https://twitch.amazon.com/prime and then go to https://twitch.tv/raphael_luba/subscribe
 !jai_streamers          Other people who stream working in / on Jai: https://www.twitch.tv/j_blow https://www.twitch.tv/ropemikad https://www.twitch.tv/onelivesleft https://www.twitch.tv/tsoding
+!uptime                 My master was too lazy to implement Twitch API support so far. But you can help him out at https://github.com/rluba/twitch_buddy

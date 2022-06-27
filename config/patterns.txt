@@ -1,3 +1,5 @@
 vim|theme|editor    Raphael is using VimR (NeoVim) with the gruvbox theme. If you care about those things, you can find his (messy) neovim config at https://github.com/rluba/neovim-config 
 m1                  Raphael is working on a M1 MacBook Pro. The compiler does note yet run natively on M1.
 beta                Jai is currently in closed beta. It’s not yet freely available.
+good\s*bot          Thanks, I’m trying. You can see how I work at https://github.com/rluba/twitch_buddy
+bad\s*bot           If you’re unhappy with me, post suggestions at https://github.com/rluba/twitch_buddy
