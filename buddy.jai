@@ -8,6 +8,8 @@ channel: string;
 stream_live: bool;
 stream_start_time: Apollo_Time;
 
+builtin_commands: Table(string, #type ());
+
 commands: Table(string, string);
 commands_text: string; // Just for freeing
 
@@ -71,6 +73,11 @@ main :: () {
 
 	streamer_name := slice(channel, 1, channel.count - 1);
 	oauth_token := slice(password, 6, password.count - 6);
+
+
+	table_add(*builtin_commands, "!commands", #bake_arguments send_command_list(used_command = "!commands"));
+	table_add(*builtin_commands, "!help", #bake_arguments send_command_list(used_command = "!help"));
+	table_add(*builtin_commands, "!uptime", send_uptime);
     
     watcher: File_Watcher;
     init(*watcher, on_file_changed);
@@ -126,24 +133,22 @@ event_callback :: (event: Twitch_Event) {
                 return;
             }
 
-            if message == {
-                case "!commands";
-                    send_command_list();
-				case "!uptime";
-					send_uptime();
-                case;
-                    response, found_command := table_find(*commands, message);
-                    if found_command {
-                        respond(message, response);
-                    } else {
-                        push_allocator(temp);
-                        for patterns {
-                            matched := match(message, it.expression);
-                            if matched {
-                                respond(message, it.response);
-                            }
-                        }
-                    }
+			response_fn, found_builtin_command := table_find(*builtin_commands, message);
+			if found_builtin_command {
+				response_fn();
+			} else {
+				response, found_command := table_find(*commands, message);
+				if found_command {
+					respond(message, response);
+				} else {
+					push_allocator(temp);
+					for patterns {
+						matched := match(message, it.expression);
+						if matched {
+							respond(message, it.response);
+						}
+					}
+				}
             }
         case;
             log("Got event of type %: %", event.type, event.raw);
@@ -158,10 +163,15 @@ respond :: (message: string, response: string) {
     }
 }
 
-send_command_list :: () {
+send_command_list :: (used_command: string) {
     push_allocator(temp);
     sorted_commands: [..] string;
-    array_reserve(*sorted_commands, commands.count);
+    array_reserve(*sorted_commands, builtin_commands.count + commands.count);
+
+    for builtin_commands {
+		if it_index == used_command then continue;
+        array_add(*sorted_commands, it_index);
+    }
     for commands {
         array_add(*sorted_commands, it_index);
     }
