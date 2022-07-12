@@ -5,6 +5,10 @@ PATTERNS_PATH :: "config/patterns.txt";
 twitch: Twitch_Chat;
 
 channel: string;
+
+UPTIME_CHECK_INTERVAL_SECONDS :: 5 * 60;
+last_uptime_check: Apollo_Time;
+
 stream_live: bool;
 stream_start_time: Apollo_Time;
 
@@ -74,7 +78,6 @@ main :: () {
 	streamer_name := slice(channel, 1, channel.count - 1);
 	oauth_token := slice(password, 6, password.count - 6);
 
-
 	table_add(*builtin_commands, "!commands", #bake_arguments send_command_list(used_command = "!commands"));
 	table_add(*builtin_commands, "!help", #bake_arguments send_command_list(used_command = "!help"));
 	table_add(*builtin_commands, "!uptime", send_uptime);
@@ -97,7 +100,9 @@ main :: () {
         success = update(*twitch, 5000);
         if !success then exit(1);
 
-		// @ToDo: Update the uptime from time to time…
+		if to_seconds(current_time_monotonic() - last_uptime_check) > UPTIME_CHECK_INTERVAL_SECONDS {
+			update_uptime(streamer_name, oauth_token, client_id);
+		}
 
         reset_temporary_storage();
     }
@@ -300,6 +305,8 @@ reload_patterns :: () {
 TWITCH_API_BASE_URL :: "https://api.twitch.tv/helix";
 
 update_uptime :: (username: string, oauth_key: string, client_id: string) -> bool {
+	last_uptime_check = current_time_monotonic();
+
 	streams_url := tprint("%/streams?user_login=%", TWITCH_API_BASE_URL, escape_url_param(username));
 	headers: [2] string;
 	headers[0] = tprint("Authorization: Bearer %", oauth_key);
