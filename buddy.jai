@@ -5,6 +5,7 @@ PATTERNS_PATH :: "config/patterns.txt";
 twitch: Twitch_Chat;
 
 channel: string;
+stream_live: bool;
 stream_start_time: Apollo_Time;
 
 commands: Table(string, string);
@@ -178,16 +179,20 @@ send_command_list :: () {
 }
 
 send_uptime :: () {
-	uptime_seconds := to_seconds(current_time_consensus() - stream_start_time);
-	uptime_total_minutes := uptime_seconds / 60;
-	uptime_hours   := uptime_total_minutes / 60;
-	uptime_minutes := uptime_total_minutes % 60;
+	if stream_live {
+		uptime_seconds := to_seconds(current_time_consensus() - stream_start_time);
+		uptime_total_minutes := uptime_seconds / 60;
+		uptime_hours   := uptime_total_minutes / 60;
+		uptime_minutes := uptime_total_minutes % 60;
 
-	hours_label := ifx uptime_hours == 1 then "hour" else "hours";
-	minutes_label := ifx uptime_minutes == 1 then "minute" else "minutes";
+		hours_label := ifx uptime_hours == 1 then "hour" else "hours";
+		minutes_label := ifx uptime_minutes == 1 then "minute" else "minutes";
 
-	message := tprint("This stream has been live for % % % %.", uptime_hours, hours_label, uptime_minutes, minutes_label);
-    cmd_privmsg(*twitch, channel, message);
+		message := tprint("This stream has been live for % % % %.", uptime_hours, hours_label, uptime_minutes, minutes_label);
+		cmd_privmsg(*twitch, channel, message);
+	} else {
+		cmd_privmsg(*twitch, channel, "This stream is not live.");
+	}
 }
 
 reload_commands :: () {
@@ -305,29 +310,31 @@ update_uptime :: (username: string, oauth_key: string, client_id: string) -> boo
 			return false;
 		}
 
-		if result.data.count != 1 {
-			log_error("Couldn’t find stream details for %", username);
-			return false;
-		}
-		info := result.data[0];
-		log("Stream info: %", info);
+		if result.data.count == 1 {
+			info := result.data[0];
+			log("Stream info: %", info);
 
-		matched, captures := match(info.started_at, "^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})Z$");
-		defer array_free(captures);
-		if !matched {
-			log_error("Could not parse stream start time \"%\"", info.started_at);
-			return false;
-		}
+			matched, captures := match(info.started_at, "^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})Z$");
+			defer array_free(captures);
+			if !matched {
+				log_error("Could not parse stream start time \"%\"", info.started_at);
+				return false;
+			}
 
-		calendar: Calendar_Time;
-		calendar.year = xx to_integer(captures[1]);
-		calendar.month_starting_at_0 = xx (to_integer(captures[2]) - 1);
-		calendar.day_of_month_starting_at_0 = xx (to_integer(captures[3]) - 1);
-		calendar.hour = xx to_integer(captures[4]);
-		calendar.minute = xx to_integer(captures[5]);
-		calendar.second = xx to_integer(captures[6]);
-		calendar.time_zone = .UTC;
-		stream_start_time = calendar_to_apollo(calendar);
+			calendar: Calendar_Time;
+			calendar.year = xx to_integer(captures[1]);
+			calendar.month_starting_at_0 = xx (to_integer(captures[2]) - 1);
+			calendar.day_of_month_starting_at_0 = xx (to_integer(captures[3]) - 1);
+			calendar.hour = xx to_integer(captures[4]);
+			calendar.minute = xx to_integer(captures[5]);
+			calendar.second = xx to_integer(captures[6]);
+			calendar.time_zone = .UTC;
+
+			stream_live = true;
+			stream_start_time = calendar_to_apollo(calendar);
+		} else {
+			stream_live = false;
+		}
 	}
 
 	return true;
