@@ -4,3 +4,9 @@
 [submodule "modules/uniform"]
 	path = modules/uniform
 	url = git@github.com:rluba/uniform.git
+[submodule "modules/jason"]
+	path = modules/jason
+	url = git@github.com:rluba/jason.git
+[submodule "modules/unicode_utils"]
+	path = modules/unicode_utils
+	url = git@github.com:rluba/jai-unicode.git

@@ -5,6 +5,7 @@ PATTERNS_PATH :: "config/patterns.txt";
 twitch: Twitch_Chat;
 
 channel: string;
+stream_start_time: Apollo_Time;
 
 commands: Table(string, string);
 commands_text: string; // Just for freeing
@@ -36,18 +37,24 @@ main :: () {
     }
 
     found: bool;
+	remainder: string;
+
     credentials: string;
     username: string;
     password: string;
-    found, credentials, channel = split_from_left(credentials_file_content, #char "\n");
+	client_id: string;
+
+    found, credentials, remainder = split_from_left(credentials_file_content, #char "\n");
+    found, channel, client_id = split_from_left(remainder, #char "\n");
     found, username, password = split_from_left(credentials, #char " ");
     if !found {
-        log_error("Credentails in \"%\" have an invalid format. Expected: <username> <password>", credentials_path);
+        log_error("Credentials in \"%\" have an invalid format. Expected:\n<username> <password>\n<channel_name>\n<app_client_id>", credentials_path);
         exit(1);
     }
 
     password = trim(password, " \t\r\n");
     channel = trim(channel, " \t\r\n");
+    client_id = trim(client_id, " \t\r\n");
     if !begins_with(password, "oauth:") {
         log_error("Invalid credentials. Expected password to begin with \"oauth:\".");
         exit(1);
@@ -56,6 +63,13 @@ main :: () {
         log_error("Invalid credentials. Expected channel name to begin with \"#\".");
         exit(1);
     }
+    if !client_id {
+        log_error("Invalid credentials. Missing client ID.");
+        exit(1);
+    }
+
+	streamer_name := slice(channel, 1, channel.count - 1);
+	oauth_token := slice(password, 6, password.count - 6);
     
     watcher: File_Watcher;
     init(*watcher, on_file_changed);
@@ -63,6 +77,7 @@ main :: () {
 
     reload_commands();
     reload_patterns();
+	update_uptime(streamer_name, oauth_token, client_id);
 
     init(*twitch, event_callback, verbose = args.verbose);
     success = connect(*twitch, username, password);
@@ -73,6 +88,8 @@ main :: () {
 
         success = update(*twitch, 5000);
         if !success then exit(1);
+
+		// @ToDo: Update the uptime from time to time…
 
         reset_temporary_storage();
     }
@@ -111,6 +128,8 @@ event_callback :: (event: Twitch_Event) {
             if message == {
                 case "!commands";
                     send_command_list();
+				case "!uptime";
+					send_uptime();
                 case;
                     response, found_command := table_find(*commands, message);
                     if found_command {
@@ -155,6 +174,19 @@ send_command_list :: () {
         append(*builder, it);
     }
     message := builder_to_string(*builder, temp);
+    cmd_privmsg(*twitch, channel, message);
+}
+
+send_uptime :: () {
+	uptime_seconds := to_seconds(current_time_consensus() - stream_start_time);
+	uptime_total_minutes := uptime_seconds / 60;
+	uptime_hours   := uptime_total_minutes / 60;
+	uptime_minutes := uptime_total_minutes % 60;
+
+	hours_label := ifx uptime_hours == 1 then "hour" else "hours";
+	minutes_label := ifx uptime_minutes == 1 then "minute" else "minutes";
+
+	message := tprint("This stream has been live for % % % %.", uptime_hours, hours_label, uptime_minutes, minutes_label);
     cmd_privmsg(*twitch, channel, message);
 }
 
@@ -250,17 +282,86 @@ reload_patterns :: () {
     log("Loaded % patterns", patterns.count);
 }
 
+TWITCH_API_BASE_URL :: "https://api.twitch.tv/helix";
+
+update_uptime :: (username: string, oauth_key: string, client_id: string) -> bool {
+	streams_url := tprint("%/streams?user_login=%", TWITCH_API_BASE_URL, escape_url_param(username));
+	headers: [2] string;
+	headers[0] = tprint("Authorization: Bearer %", oauth_key);
+	headers[1] = tprint("Client-Id: %", client_id);
+
+	response_code, success, response_builder := http_get(streams_url, headers);
+	response := builder_to_string(*response_builder, temp);
+	if !is_success_code(response_code) {
+		log_error("Could not fetch stream details for %: Code %\n%", username, response_code, response);
+		return false;
+	}
+
+
+	{
+		success, result := json_parse_string(response, Twitch_List(Stream_Info));
+		if !success {
+			log_error("Couldn’t parse stream details response");
+			return false;
+		}
+
+		if result.data.count != 1 {
+			log_error("Couldn’t find stream details for %", username);
+			return false;
+		}
+		info := result.data[0];
+		log("Stream info: %", info);
+
+		matched, captures := match(info.started_at, "^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})Z$");
+		defer array_free(captures);
+		if !matched {
+			log_error("Could not parse stream start time \"%\"", info.started_at);
+			return false;
+		}
+
+		calendar: Calendar_Time;
+		calendar.year = xx to_integer(captures[1]);
+		calendar.month_starting_at_0 = xx (to_integer(captures[2]) - 1);
+		calendar.day_of_month_starting_at_0 = xx (to_integer(captures[3]) - 1);
+		calendar.hour = xx to_integer(captures[4]);
+		calendar.minute = xx to_integer(captures[5]);
+		calendar.second = xx to_integer(captures[6]);
+		calendar.time_zone = .UTC;
+		stream_start_time = calendar_to_apollo(calendar);
+	}
+
+	return true;
+}
+
+Twitch_List :: struct (T: Type) {
+	data: [] T;
+}
+
+Stream_Info :: struct {
+	started_at: string;
+	title: string;
+	type: string;
+}
+
+escape_url_param :: (param: string) -> string {
+	// @ToDo
+	return param;
+}
+
+#load "http_client.jai";
+
 #import "Basic";
 #import "Command_Line";
 #import "File";
+#import "File_Watcher";
+#import "Hash_Table";
+#import "IntroSort";
+#import "jason";
 #import "String";
 #import "System";
-#import "twitch_irc";
-#import "File_Watcher";
 #import "Text_File_Handler";
-#import "Hash_Table";
+#import "twitch_irc";
+#import "uniform";
 #if OS == .MACOS {
     #import "macos";
 }
-#import "IntroSort";
-#import "uniform";
