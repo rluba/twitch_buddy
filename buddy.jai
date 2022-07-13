@@ -2,6 +2,8 @@ CREDENTIALS_FILENAME :: ".twitch_buddy_credentials";
 COMMANDS_PATH :: "config/commands.txt";
 PATTERNS_PATH :: "config/patterns.txt";
 
+PATTERN_COOLDOWN_SECONDS :: 5 * 60;
+
 twitch: Twitch_Chat;
 
 channel: string;
@@ -20,6 +22,7 @@ commands_text: string; // Just for freeing
 Pattern_Response :: struct {
     expression: Regexp;
     response: string;
+	last_match_time: Apollo_Time = APOLLO_TIME_INVALID;
 }
 patterns: [..] Pattern_Response;
 patterns_text: string; // Just for freeing
@@ -147,10 +150,16 @@ event_callback :: (event: Twitch_Event) {
 					respond(message, response);
 				} else {
 					push_allocator(temp);
-					for patterns {
+					for * patterns {
 						matched := match(message, it.expression);
 						if matched {
-							respond(message, it.response);
+							now := current_time_monotonic();
+							if it.last_match_time == APOLLO_TIME_INVALID || (to_seconds(now - it.last_match_time) > PATTERN_COOLDOWN_SECONDS) {
+								respond(message, it.response);
+								it.last_match_time = now;
+							} else {
+								log("Not responding with pattern due to cooldown (%s remaining): %", PATTERN_COOLDOWN_SECONDS - to_seconds(now - it.last_match_time), message);
+							}
 						}
 					}
 				}
