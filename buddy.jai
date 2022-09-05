@@ -4,9 +4,7 @@ PATTERNS_PATH :: "config/patterns.txt";
 
 PATTERN_COOLDOWN_SECONDS :: 5 * 60;
 
-twitch: Twitch_Chat;
-
-channel: string;
+twitch: Twitch_Chat(Credentials);
 
 UPTIME_CHECK_INTERVAL_SECONDS :: 5 * 60;
 last_uptime_check: Apollo_Time;
@@ -33,11 +31,16 @@ Args :: struct {
 }
 
 Credentials :: struct {
+    username: string;
+    channel: string;
     client_id: string;
     client_secret: string;
     access_token: string;
     refresh_token: string;
 }
+
+credentials_path: string;
+credentials: Credentials;
 
 main :: () {
     #if OS == .MACOS {
@@ -46,7 +49,7 @@ main :: () {
 
     success, args := parse_arguments(Args);
 
-    credentials_path := tprint("%/%", get_home_directory(), CREDENTIALS_FILENAME);
+    credentials_path = tprint("%/%", get_home_directory(), CREDENTIALS_FILENAME);
     credentials_file_content: string;
     credentials_file_content, success = read_entire_file(credentials_path);
     if !success {
@@ -54,8 +57,10 @@ main :: () {
         exit(1);
     }
 
-    using credentials: Credentials;
-    found, username, remainder := split_from_left(credentials_file_content, #char "\n");
+    found: bool;
+    remainder := credentials_file_content;
+    using credentials;
+    found, username, remainder = split_from_left(remainder, #char "\n");
     found, channel, remainder = split_from_left(remainder, #char "\n");
     found, client_id, remainder = split_from_left(remainder, #char "\n");
     found, client_secret, remainder = split_from_left(remainder, #char "\n");
@@ -92,7 +97,7 @@ main :: () {
     reload_patterns();
     update_uptime(streamer_name, *credentials, client_id);
 
-    init(*twitch, event_callback, verbose = args.verbose);
+    init(*twitch, event_callback, *credentials, verbose = args.verbose);
     password := tprint("oauth:%", credentials.access_token);
     success = connect(*twitch, username, password);
     if !success {
@@ -127,12 +132,12 @@ on_file_changed :: (watcher: *File_Watcher, change: *File_Change) {
     }
 }
 
-event_callback :: (event: Twitch_Event) {
+event_callback :: (event: Twitch_Event, data: *Credentials) {
     if event.type == {
         case .GLOBALUSERSTATE;
-            success := cmd_join(*twitch, channel);
+            success := cmd_join(*twitch, data.channel);
             if !success {
-                log_error("Couldn’t join channel %", channel);
+                log_error("Couldn’t join channel %", data.channel);
                 exit(1);
             }
         case .PRIVMSG;
@@ -174,7 +179,7 @@ event_callback :: (event: Twitch_Event) {
 
 respond :: (message: string, response: string) {
     log("Responding: %", response);
-    success := cmd_privmsg(*twitch, channel, response);
+    success := cmd_privmsg(*twitch, credentials.channel, response);
     if !success {
         log_error("Couldn’t send response to \"%\"", message);
     }
@@ -202,7 +207,7 @@ send_command_list :: (used_command: string) {
         append(*builder, it);
     }
     message := builder_to_string(*builder, temp);
-    cmd_privmsg(*twitch, channel, message);
+    cmd_privmsg(*twitch, credentials.channel, message);
 }
 
 send_uptime :: () {
@@ -216,9 +221,9 @@ send_uptime :: () {
         minutes_label := ifx uptime_minutes == 1 then "minute" else "minutes";
 
         message := tprint("This stream has been live for % % % %.", uptime_hours, hours_label, uptime_minutes, minutes_label);
-        cmd_privmsg(*twitch, channel, message);
+        cmd_privmsg(*twitch, credentials.channel, message);
     } else {
-        cmd_privmsg(*twitch, channel, "This stream is not live.");
+        cmd_privmsg(*twitch, credentials.channel, "This stream is not live.");
     }
 }
 
@@ -323,12 +328,24 @@ update_uptime :: (username: string, credentials: *Credentials, client_id: string
         if was_auth_error {
             success = refresh_access_token(credentials);
             if success {
+                save_credentials(credentials);
                 success = try_update_uptime(username, credentials.access_token, client_id);
             }
         }
     }
 
     return success;
+}
+
+save_credentials :: (using credentials: *Credentials) -> bool {
+    data := tprint("%\n%\n%\n%\n%\n%\n", username, credentials.channel, client_id, client_secret, access_token, refresh_token);
+    success := write_entire_file(credentials_path, data);
+    if !success {
+        log_error("Couldn’t write credentials to %", credentials_path);
+        return false;
+    }
+
+    return true;
 }
 
 Refresh_Token_Response :: struct {
