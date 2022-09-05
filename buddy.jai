@@ -20,9 +20,10 @@ commands: Table(string, string);
 commands_text: string; // Just for freeing
 
 Pattern_Response :: struct {
+    original_pattern: string;
     expression: Regexp;
     response: string;
-	last_match_time: Apollo_Time = APOLLO_TIME_INVALID;
+    last_match_time: Apollo_Time = APOLLO_TIME_INVALID;
 }
 patterns: [..] Pattern_Response;
 patterns_text: string; // Just for freeing
@@ -81,9 +82,9 @@ main :: () {
 	streamer_name := slice(channel, 1, channel.count - 1);
 	oauth_token := slice(password, 6, password.count - 6);
 
-	table_add(*builtin_commands, "!commands", #bake_arguments send_command_list(used_command = "!commands"));
-	table_add(*builtin_commands, "!help", #bake_arguments send_command_list(used_command = "!help"));
-	table_add(*builtin_commands, "!uptime", send_uptime);
+    table_add(*builtin_commands, "!commands", #bake_arguments send_command_list(used_command = "!commands"));
+    table_add(*builtin_commands, "!help", #bake_arguments send_command_list(used_command = "!help"));
+    table_add(*builtin_commands, "!uptime", send_uptime);
     
     watcher: File_Watcher;
     init(*watcher, on_file_changed);
@@ -95,7 +96,10 @@ main :: () {
 
     init(*twitch, event_callback, verbose = args.verbose);
     success = connect(*twitch, username, password);
-    if !success then exit(1);
+    if !success {
+        log_error("Could not connect to Twitch");
+        exit(1);
+    }
 
     while true {
         process_changes(*watcher);
@@ -141,31 +145,31 @@ event_callback :: (event: Twitch_Event) {
                 return;
             }
 
-			response_fn, found_builtin_command := table_find(*builtin_commands, message);
-			if found_builtin_command {
-				response_fn();
-			} else {
-				response, found_command := table_find(*commands, message);
-				if found_command {
-					respond(message, response);
-				} else {
-					push_allocator(temp);
-					for * patterns {
-						matched := match(message, it.expression);
-						if matched {
-							now := current_time_monotonic();
-							if it.last_match_time == APOLLO_TIME_INVALID || (to_seconds(now - it.last_match_time) > PATTERN_COOLDOWN_SECONDS) {
-								respond(message, it.response);
-								it.last_match_time = now;
-							} else {
-								log("Not responding with pattern due to cooldown (%s remaining): %", PATTERN_COOLDOWN_SECONDS - to_seconds(now - it.last_match_time), message);
-							}
-						}
-					}
-				}
+            response_fn, found_builtin_command := table_find(*builtin_commands, message);
+            if found_builtin_command {
+                response_fn();
+            } else {
+                response, found_command := table_find(*commands, message);
+                if found_command {
+                    respond(message, response);
+                } else {
+                    push_allocator(temp);
+                    now := current_time_monotonic();
+                    for * patterns {
+                        matched := match(message, it.expression);
+                        if matched {
+                            if it.last_match_time == APOLLO_TIME_INVALID || (to_seconds(now - it.last_match_time) > PATTERN_COOLDOWN_SECONDS) {
+                                respond(message, it.response);
+                                it.last_match_time = now;
+                            } else {
+                                log("Not responding for pattern % due to cooldown (%s remaining)", it.original_pattern, PATTERN_COOLDOWN_SECONDS - to_seconds(now - it.last_match_time));
+                            }
+                        }
+                    }
+                }
             }
         case;
-            log("Got event of type %: %", event.type, event.raw);
+            log("Received %: %", event.type, event.raw);
     }
 }
 
@@ -183,7 +187,7 @@ send_command_list :: (used_command: string) {
     array_reserve(*sorted_commands, builtin_commands.count + commands.count);
 
     for builtin_commands {
-		if it_index == used_command then continue;
+        if it_index == used_command then continue;
         array_add(*sorted_commands, it_index);
     }
     for commands {
@@ -203,20 +207,20 @@ send_command_list :: (used_command: string) {
 }
 
 send_uptime :: () {
-	if stream_live {
-		uptime_seconds := to_seconds(current_time_consensus() - stream_start_time);
-		uptime_total_minutes := uptime_seconds / 60;
-		uptime_hours   := uptime_total_minutes / 60;
-		uptime_minutes := uptime_total_minutes % 60;
+    if stream_live {
+        uptime_seconds := to_seconds(current_time_consensus() - stream_start_time);
+        uptime_total_minutes := uptime_seconds / 60;
+        uptime_hours   := uptime_total_minutes / 60;
+        uptime_minutes := uptime_total_minutes % 60;
 
-		hours_label := ifx uptime_hours == 1 then "hour" else "hours";
-		minutes_label := ifx uptime_minutes == 1 then "minute" else "minutes";
+        hours_label := ifx uptime_hours == 1 then "hour" else "hours";
+        minutes_label := ifx uptime_minutes == 1 then "minute" else "minutes";
 
-		message := tprint("This stream has been live for % % % %.", uptime_hours, hours_label, uptime_minutes, minutes_label);
-		cmd_privmsg(*twitch, channel, message);
-	} else {
-		cmd_privmsg(*twitch, channel, "This stream is not live.");
-	}
+        message := tprint("This stream has been live for % % % %.", uptime_hours, hours_label, uptime_minutes, minutes_label);
+        cmd_privmsg(*twitch, channel, message);
+    } else {
+        cmd_privmsg(*twitch, channel, "This stream is not live.");
+    }
 }
 
 reload_commands :: () {
@@ -298,6 +302,7 @@ reload_patterns :: () {
         }
 
         result: Pattern_Response;
+        result.original_pattern = pattern;
         result.expression = expression;
         result.response = response;
         array_add(*patterns, result);
@@ -314,71 +319,71 @@ reload_patterns :: () {
 TWITCH_API_BASE_URL :: "https://api.twitch.tv/helix";
 
 update_uptime :: (username: string, oauth_key: string, client_id: string) -> bool {
-	last_uptime_check = current_time_monotonic();
+    last_uptime_check = current_time_monotonic();
 
-	streams_url := tprint("%/streams?user_login=%", TWITCH_API_BASE_URL, escape_url_param(username));
-	headers: [2] string;
-	headers[0] = tprint("Authorization: Bearer %", oauth_key);
-	headers[1] = tprint("Client-Id: %", client_id);
+    streams_url := tprint("%/streams?user_login=%", TWITCH_API_BASE_URL, escape_url_param(username));
+    headers: [2] string;
+    headers[0] = tprint("Authorization: Bearer %", oauth_key);
+    headers[1] = tprint("Client-Id: %", client_id);
 
-	response_code, success, response_builder := http_get(streams_url, headers);
-	response := builder_to_string(*response_builder, temp);
-	if !is_success_code(response_code) {
-		log_error("Could not fetch stream details for %: Code %\n%", username, response_code, response);
-		return false;
-	}
+    response_code, success, response_builder := http_get(streams_url, headers);
+    response := builder_to_string(*response_builder, temp);
+    if !is_success_code(response_code) {
+        log_error("Could not fetch stream details for %: Code %\n%", username, response_code, response);
+        return false;
+    }
 
 
-	{
-		success, result := json_parse_string(response, Twitch_List(Stream_Info));
-		if !success {
-			log_error("Couldn’t parse stream details response");
-			return false;
-		}
+    {
+        success, result := json_parse_string(response, Twitch_List(Stream_Info));
+        if !success {
+            log_error("Couldn’t parse stream details response");
+            return false;
+        }
 
-		if result.data.count == 1 {
-			info := result.data[0];
-			log("Stream info: %", info);
+        if result.data.count == 1 {
+            info := result.data[0];
+            log("Stream info: %", info);
 
-			matched, captures := match(info.started_at, "^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})Z$");
-			defer array_free(captures);
-			if !matched {
-				log_error("Could not parse stream start time \"%\"", info.started_at);
-				return false;
-			}
+            matched, captures := match(info.started_at, "^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})Z$");
+            defer array_free(captures);
+            if !matched {
+                log_error("Could not parse stream start time \"%\"", info.started_at);
+                return false;
+            }
 
-			calendar: Calendar_Time;
-			calendar.year = xx to_integer(captures[1]);
-			calendar.month_starting_at_0 = xx (to_integer(captures[2]) - 1);
-			calendar.day_of_month_starting_at_0 = xx (to_integer(captures[3]) - 1);
-			calendar.hour = xx to_integer(captures[4]);
-			calendar.minute = xx to_integer(captures[5]);
-			calendar.second = xx to_integer(captures[6]);
-			calendar.time_zone = .UTC;
+            calendar: Calendar_Time;
+            calendar.year = xx to_integer(captures[1]);
+            calendar.month_starting_at_0 = xx (to_integer(captures[2]) - 1);
+            calendar.day_of_month_starting_at_0 = xx (to_integer(captures[3]) - 1);
+            calendar.hour = xx to_integer(captures[4]);
+            calendar.minute = xx to_integer(captures[5]);
+            calendar.second = xx to_integer(captures[6]);
+            calendar.time_zone = .UTC;
 
-			stream_live = true;
-			stream_start_time = calendar_to_apollo(calendar);
-		} else {
-			stream_live = false;
-		}
-	}
+            stream_live = true;
+            stream_start_time = calendar_to_apollo(calendar);
+        } else {
+            stream_live = false;
+        }
+    }
 
-	return true;
+    return true;
 }
 
 Twitch_List :: struct (T: Type) {
-	data: [] T;
+    data: [] T;
 }
 
 Stream_Info :: struct {
-	started_at: string;
-	title: string;
-	type: string;
+    started_at: string;
+    title: string;
+    type: string;
 }
 
 escape_url_param :: (param: string) -> string {
-	// @ToDo
-	return param;
+    // @ToDo
+    return param;
 }
 
 #load "http_client.jai";
