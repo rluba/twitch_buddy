@@ -32,6 +32,13 @@ Args :: struct {
     verbose: bool;
 }
 
+Credentials :: struct {
+    client_id: string;
+    client_secret: string;
+    access_token: string;
+    refresh_token: string;
+}
+
 main :: () {
     #if OS == .MACOS {
         init_macos();
@@ -47,29 +54,16 @@ main :: () {
         exit(1);
     }
 
-    found: bool;
-	remainder: string;
+    using credentials: Credentials;
+    found, username, remainder := split_from_left(credentials_file_content, #char "\n");
+    found, channel, remainder = split_from_left(remainder, #char "\n");
+    found, client_id, remainder = split_from_left(remainder, #char "\n");
+    found, client_secret, remainder = split_from_left(remainder, #char "\n");
+    found, access_token, remainder = split_from_left(remainder, #char "\n");
+    found, refresh_token, remainder = split_from_left(remainder, #char "\n");
 
-    credentials: string;
-    username: string;
-    password: string;
-	client_id: string;
-
-    found, credentials, remainder = split_from_left(credentials_file_content, #char "\n");
-    found, channel, client_id = split_from_left(remainder, #char "\n");
-    found, username, password = split_from_left(credentials, #char " ");
-    if !found {
-        log_error("Credentials in \"%\" have an invalid format. Expected:\n<username> <password>\n<channel_name>\n<app_client_id>", credentials_path);
-        exit(1);
-    }
-
-    password = trim(password, " \t\r\n");
     channel = trim(channel, " \t\r\n");
     client_id = trim(client_id, " \t\r\n");
-    if !begins_with(password, "oauth:") {
-        log_error("Invalid credentials. Expected password to begin with \"oauth:\".");
-        exit(1);
-    }
     if !begins_with(channel, "#") {
         log_error("Invalid credentials. Expected channel name to begin with \"#\".");
         exit(1);
@@ -79,8 +73,12 @@ main :: () {
         exit(1);
     }
 
-	streamer_name := slice(channel, 1, channel.count - 1);
-	oauth_token := slice(password, 6, password.count - 6);
+    if !username || !access_token {
+        log_error("Credentials in \"%\" have an invalid format. See readme.md for details.", credentials_path);
+        exit(1);
+    }
+
+    streamer_name := slice(channel, 1, channel.count - 1);
 
     table_add(*builtin_commands, "!commands", #bake_arguments send_command_list(used_command = "!commands"));
     table_add(*builtin_commands, "!help", #bake_arguments send_command_list(used_command = "!help"));
@@ -92,9 +90,10 @@ main :: () {
 
     reload_commands();
     reload_patterns();
-	update_uptime(streamer_name, oauth_token, client_id);
+    update_uptime(streamer_name, *credentials, client_id);
 
     init(*twitch, event_callback, verbose = args.verbose);
+    password := tprint("oauth:%", credentials.access_token);
     success = connect(*twitch, username, password);
     if !success {
         log_error("Could not connect to Twitch");
@@ -107,9 +106,9 @@ main :: () {
         success = update(*twitch, 5000);
         if !success then exit(1);
 
-		if to_seconds(current_time_monotonic() - last_uptime_check) > UPTIME_CHECK_INTERVAL_SECONDS {
-			update_uptime(streamer_name, oauth_token, client_id);
-		}
+        if to_seconds(current_time_monotonic() - last_uptime_check) > UPTIME_CHECK_INTERVAL_SECONDS {
+            update_uptime(streamer_name, *credentials, client_id);
+        }
 
         reset_temporary_storage();
     }
@@ -318,17 +317,77 @@ reload_patterns :: () {
 
 TWITCH_API_BASE_URL :: "https://api.twitch.tv/helix";
 
-update_uptime :: (username: string, oauth_key: string, client_id: string) -> bool {
+update_uptime :: (username: string, credentials: *Credentials, client_id: string) -> bool {
+    success, was_auth_error := try_update_uptime(username, credentials.access_token, client_id);
+    if !success {
+        if was_auth_error {
+            success = refresh_access_token(credentials);
+            if success {
+                success = try_update_uptime(username, credentials.access_token, client_id);
+            }
+        }
+    }
+
+    return success;
+}
+
+Refresh_Token_Response :: struct {
+    access_token: string;
+    refresh_token: string;
+    scope: [] string;
+    token_type: string;
+}
+
+refresh_access_token :: (credentials: *Credentials) -> bool {
+    if !credentials.client_secret {
+        log_error("Cannot refresh access token: No client secret configured.");
+        return false;
+    }
+    if !credentials.refresh_token {
+        log_error("Cannot refresh access token: No refresh token configured.");
+        return false;
+    }
+
+    push_allocator(temp);
+    headers := string.["Content-Type: application/x-www-form-urlencoded"];
+    payload := tprint("client_id=%&client_secret=%&grant_type=refresh_token&refresh_token=%", credentials.client_id, credentials.client_secret, credentials.refresh_token);
+
+    response_code, success, response_builder := http_request(.POST, "https://id.twitch.tv/oauth2/token", cast([] u8) payload, headers);
+    response_string := builder_to_string(*response_builder);
+    if !is_success_code(response_code) {
+        log_error("Could not refresh access token: %\n%", response_code, response_string);
+        return false;
+    }
+
+    
+    {
+        success, response := json_parse_string(response_string, Refresh_Token_Response);
+        if !success {
+            log_error("Could not parse refresh token response:\n%", response_string);
+            return false;
+        }
+
+        credentials.access_token = copy_string(response.access_token);
+        credentials.refresh_token = copy_string(response.refresh_token);
+    }
+    return true;
+}
+
+try_update_uptime :: (username: string, access_token: string, client_id: string) -> success: bool, was_auth_error := false {
     last_uptime_check = current_time_monotonic();
 
     streams_url := tprint("%/streams?user_login=%", TWITCH_API_BASE_URL, escape_url_param(username));
     headers: [2] string;
-    headers[0] = tprint("Authorization: Bearer %", oauth_key);
+    headers[0] = tprint("Authorization: Bearer %", access_token);
     headers[1] = tprint("Client-Id: %", client_id);
 
     response_code, success, response_builder := http_get(streams_url, headers);
     response := builder_to_string(*response_builder, temp);
     if !is_success_code(response_code) {
+        if response_code == 401 {
+            return false, true;
+        }
+
         log_error("Could not fetch stream details for %: Code %\n%", username, response_code, response);
         return false;
     }
