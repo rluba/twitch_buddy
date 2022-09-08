@@ -49,7 +49,7 @@ main :: () {
 
     success, args := parse_arguments(Args);
 
-    credentials_path = tprint("%/%", get_home_directory(), CREDENTIALS_FILENAME);
+    credentials_path = sprint("%/%", get_home_directory(), CREDENTIALS_FILENAME);
     credentials_file_content: string;
     credentials_file_content, success = read_entire_file(credentials_path);
     if !success {
