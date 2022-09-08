@@ -385,7 +385,9 @@ refresh_access_token :: (credentials: *Credentials) -> bool {
         }
 
         credentials.access_token = copy_string(response.access_token);
-        credentials.refresh_token = copy_string(response.refresh_token);
+        if response.refresh_token {
+            credentials.refresh_token = copy_string(response.refresh_token);
+        }
     }
     return true;
 }
