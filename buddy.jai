@@ -93,9 +93,9 @@ main :: () {
     init(*watcher, on_file_changed);
     add_directories(*watcher, "config");
 
+    update_uptime(streamer_name, *credentials, client_id);
     reload_commands();
     reload_patterns();
-    update_uptime(streamer_name, *credentials, client_id);
 
     init(*twitch, event_callback, *credentials, verbose = args.verbose);
     password := tprint("oauth:%", credentials.access_token);
@@ -269,6 +269,15 @@ reload_commands :: () {
     for commands {
         log("\t%", it_index);
     }
+
+
+    response, found_command := table_find(*commands, "!project");
+    if found_command {
+        print_color("\nCurrent project: %\n", response, color=FOREGROUND_BLUE);
+    } else {
+        log("\nNo current project command (!project) found!");
+    }
+    log("\n");
 }
 
 reload_patterns :: () {
@@ -467,6 +476,7 @@ escape_url_param :: (param: string) -> string {
 #load "http_client.jai";
 
 #import "Basic";
+#import "Print_Color";
 #import "Command_Line";
 #import "File";
 #import "File_Watcher";
