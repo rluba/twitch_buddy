@@ -46,6 +46,7 @@ main :: () {
     #if OS == .MACOS {
         init_macos();
     }
+    context.logger = buddy_logger;
 
     success, args := parse_arguments(Args);
 
@@ -89,8 +90,8 @@ main :: () {
     table_add(*builtin_commands, "!help", #bake_arguments send_command_list(used_command = "!help"));
     table_add(*builtin_commands, "!uptime", send_uptime);
     
-    watcher: File_Watcher;
-    init(*watcher, on_file_changed);
+    watcher: File_Watcher(void);
+    init(*watcher, on_file_changed, null);
     add_directories(*watcher, "config");
 
     update_uptime(streamer_name, *credentials, client_id);
@@ -99,17 +100,18 @@ main :: () {
 
     init(*twitch, event_callback, *credentials, verbose = args.verbose);
     password := tprint("oauth:%", credentials.access_token);
-    success = connect(*twitch, username, password);
-    if !success {
-        log_error("Could not connect to Twitch");
-        exit(1);
-    }
-
     while true {
         process_changes(*watcher);
 
-        success = update(*twitch, 5000);
-        if !success then exit(1);
+        connected := ensure_connected_to_server(username, password);
+        if connected {
+            success = update(*twitch, 5000);
+            if !success {
+                disconnect(*twitch);
+            }
+        } else {
+            log_error("Could not connect to Twitch server. Will retry...");
+        }
 
         if to_seconds(current_time_monotonic() - last_uptime_check) > UPTIME_CHECK_INTERVAL_SECONDS {
             update_uptime(streamer_name, *credentials, client_id);
@@ -119,7 +121,14 @@ main :: () {
     }
 }
 
-on_file_changed :: (watcher: *File_Watcher, change: *File_Change) {
+ensure_connected_to_server :: (username: string, password: string) -> bool {
+    if is_connected(*twitch) return true;
+
+    success := connect(*twitch, username, password);
+    return success;
+}
+
+on_file_changed :: (watcher: *File_Watcher(void), change: *File_Change, user_data: *void) {
     // filename := path_get_filename(change.full_path);
     if ends_with(change.full_path, COMMANDS_PATH) {
         log("Reloading commands…");
@@ -165,6 +174,7 @@ event_callback :: (event: Twitch_Event, data: *Credentials) {
                             if it.last_match_time == APOLLO_TIME_INVALID || (to_seconds(now - it.last_match_time) > PATTERN_COOLDOWN_SECONDS) {
                                 respond(message, it.response);
                                 it.last_match_time = now;
+                                break;
                             } else {
                                 log("Not responding for pattern % due to cooldown (%s remaining)", it.original_pattern, PATTERN_COOLDOWN_SECONDS - to_seconds(now - it.last_match_time));
                             }
@@ -173,7 +183,7 @@ event_callback :: (event: Twitch_Event, data: *Credentials) {
                 }
             }
         case;
-            log("Received %: %", event.type, event.raw);
+            log("TTV %: %", event.type, event.raw);
     }
 }
 
@@ -270,10 +280,9 @@ reload_commands :: () {
         log("\t%", it_index);
     }
 
-
     response, found_command := table_find(*commands, "!project");
     if found_command {
-        print_color("\nCurrent project: %\n", response, color=FOREGROUND_BLUE);
+        print_color("\nCurrent project: %\n", response, color=.BLUE);
     } else {
         log("\nNo current project command (!project) found!");
     }
@@ -374,29 +383,31 @@ refresh_access_token :: (credentials: *Credentials) -> bool {
         return false;
     }
 
-    push_allocator(temp);
-    headers := string.["Content-Type: application/x-www-form-urlencoded"];
-    payload := tprint("client_id=%&client_secret=%&grant_type=refresh_token&refresh_token=%", credentials.client_id, credentials.client_secret, credentials.refresh_token);
-
-    response_code, success, response_builder := http_request(.POST, "https://id.twitch.tv/oauth2/token", cast([] u8) payload, headers);
-    response_string := builder_to_string(*response_builder);
-    if !is_success_code(response_code) {
-        log_error("Could not refresh access token: %\n%", response_code, response_string);
-        return false;
-    }
-
-    
+    response: Refresh_Token_Response;
     {
-        success, response := json_parse_string(response_string, Refresh_Token_Response);
+        push_allocator(temp);
+        headers := string.["Content-Type: application/x-www-form-urlencoded"];
+        payload := tprint("client_id=%&client_secret=%&grant_type=refresh_token&refresh_token=%", credentials.client_id, credentials.client_secret, credentials.refresh_token);
+
+        response_code, success, response_builder := http_request(.POST, "https://id.twitch.tv/oauth2/token", cast([] u8) payload, headers);
+        response_string := builder_to_string(*response_builder);
+        if !is_success_code(response_code) {
+            log_error("Could not refresh access token: %\n%", response_code, response_string);
+            return false;
+        }
+
+        
+        success, response = json_parse_string(response_string, Refresh_Token_Response);
         if !success {
             log_error("Could not parse refresh token response:\n%", response_string);
             return false;
         }
+    }
 
-        credentials.access_token = copy_string(response.access_token);
-        if response.refresh_token {
-            credentials.refresh_token = copy_string(response.refresh_token);
-        }
+    // Copy after temp allocator has been popped, or we’ll copy into temp and then lose that data!
+    credentials.access_token = copy_string(response.access_token);
+    if response.refresh_token {
+        credentials.refresh_token = copy_string(response.refresh_token);
     }
     return true;
 }
@@ -472,6 +483,27 @@ escape_url_param :: (param: string) -> string {
     // @ToDo
     return param;
 }
+
+buddy_logger :: (message: string, data: *void, info: Log_Info) {
+    if !message then return;
+
+    to_standard_error := (info.common_flags & .ERROR) != 0;
+
+    now := current_time_consensus();
+    cal := to_calendar(now, .LOCAL);
+    fi2 :: #bake_arguments formatInt(minimum_digits = 2);
+    date_string := tprint("%-% %:%: ", fi2(cal.month_starting_at_0 + 1), fi2(cal.day_of_month_starting_at_0 + 1), fi2(cal.hour), fi2(cal.minute));
+    with_console_color(.HI_BLACK, to_standard_error = to_standard_error, code = #code {
+        write_string(date_string, to_standard_error = to_standard_error);
+    });
+
+    if message[message.count-1] != #char "\n" {
+        write_strings(message, "\n", to_standard_error = to_standard_error);
+    } else {
+        write_string(message, to_standard_error = to_standard_error);
+    }
+}
+
 
 #load "http_client.jai";
 

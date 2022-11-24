@@ -1,8 +1,10 @@
-vim|theme|editor    	Raphael is using VimR (NeoVim) with the gruvbox theme. If you care about those things, you can find his (messy) neovim config at https://github.com/rluba/neovim-config 
-m1                  	Raphael is working on a M1 MacBook Pro. The compiler does note yet run natively on M1.
-beta                	Jai is currently in closed beta. It’s not yet freely available.
-good\s*bot          	Thanks, I’m trying. You can see how I work at https://github.com/rluba/twitch_buddy
-bad\s*bot           	If you’re unhappy with me, post suggestions at https://github.com/rluba/twitch_buddy
-lov(e(ly)?|ing).+bot   	I love you too!
-jai.*open(\s*|-)source	Currently, Jai is not open-source.
-(self-?host|bootstrap)  Jai is not self-hosted. It might be in the future, but it’s very low-priority.
+\bm1\b                          Raphael is working on a M1 MacBook Pro. The compiler does note yet run natively on M1.
+beta                            Jai is currently in closed beta. It’s not yet freely available.
+good\s*bot                      Thanks, I’m trying. You can see how I work at https://github.com/rluba/twitch_buddy
+bad\s*bot                       If you’re unhappy with me, post suggestions at https://github.com/rluba/twitch_buddy
+jai.*open(\s*|-)source	        Currently, Jai is not open-source.
+(self[-\s*]?host|bootstrap)     Jai is not self-hosted. It might be in the future, but it’s very low-priority.
+lov(e(ly)?|ing).+bot            I love you too!
+Mr_Sharkbuddy.*(best|great)     Thanks for recognizing!
+(light|dark)\s*theme            Yes, Raphael has functioning eyes and a properly lit environment. So he can tolerate both dark and light themes. You should try it sometimes.
+vim|theme|editor|dotfile        Raphael is using VimR (NeoVim) with the gruvbox theme. If you care about those things, you can find his (messy) neovim config at https://github.com/rluba/neovim-config
