@@ -282,11 +282,10 @@ reload_commands :: () {
 
     response, found_command := table_find(*commands, "!project");
     if found_command {
-        print_color("\nCurrent project: %\n", response, color=.BLUE);
+        print_color("\nCurrent project: %\n\n", response, color=.BLUE);
     } else {
-        log("\nNo current project command (!project) found!");
+        log("\nNo current project command (!project) found!\n");
     }
-    log("\n");
 }
 
 reload_patterns :: () {
@@ -404,6 +403,7 @@ refresh_access_token :: (credentials: *Credentials) -> bool {
         }
     }
 
+    log("Refreshed access token");
     // Copy after temp allocator has been popped, or we’ll copy into temp and then lose that data!
     credentials.access_token = copy_string(response.access_token);
     if response.refresh_token {
@@ -462,6 +462,7 @@ try_update_uptime :: (username: string, access_token: string, client_id: string)
             stream_live = true;
             stream_start_time = calendar_to_apollo(calendar);
         } else {
+            log("% is offline", username);
             stream_live = false;
         }
     }
@@ -489,13 +490,15 @@ buddy_logger :: (message: string, data: *void, info: Log_Info) {
 
     to_standard_error := (info.common_flags & .ERROR) != 0;
 
-    now := current_time_consensus();
-    cal := to_calendar(now, .LOCAL);
-    fi2 :: #bake_arguments formatInt(minimum_digits = 2);
-    date_string := tprint("%-% %:%: ", fi2(cal.month_starting_at_0 + 1), fi2(cal.day_of_month_starting_at_0 + 1), fi2(cal.hour), fi2(cal.minute));
-    with_console_color(.HI_BLACK, to_standard_error = to_standard_error, code = #code {
-        write_string(date_string, to_standard_error = to_standard_error);
-    });
+    if (message && message != "\n") {
+        now := current_time_consensus();
+        cal := to_calendar(now, .LOCAL);
+        fi2 :: #bake_arguments formatInt(minimum_digits = 2);
+        date_string := tprint("%-% %:%: ", fi2(cal.month_starting_at_0 + 1), fi2(cal.day_of_month_starting_at_0 + 1), fi2(cal.hour), fi2(cal.minute));
+        with_console_color(.HI_BLACK, to_standard_error = to_standard_error, code = #code {
+            write_string(date_string, to_standard_error = to_standard_error);
+        });
+    }
 
     if message[message.count-1] != #char "\n" {
         write_strings(message, "\n", to_standard_error = to_standard_error);
