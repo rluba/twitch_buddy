@@ -15,7 +15,7 @@ stream_start_time: Apollo_Time;
 builtin_commands: Table(string, #type ());
 
 commands: Table(string, string);
-commands_text: string; // Just for freeing
+commands_texts: [..] string; // Just for freeing
 
 Pattern_Response :: struct {
     original_pattern: string;
@@ -24,7 +24,7 @@ Pattern_Response :: struct {
     last_match_time: Apollo_Time = APOLLO_TIME_INVALID;
 }
 patterns: [..] Pattern_Response;
-patterns_text: string; // Just for freeing
+patterns_texts: [..] string; // Just for freeing
 
 Args :: struct {
     verbose: bool;
@@ -43,9 +43,6 @@ credentials_path: string;
 credentials: Credentials;
 
 main :: () {
-    #if OS == .MACOS {
-        init_macos();
-    }
     context.logger = buddy_logger;
 
     success, args := parse_arguments(Args);
@@ -246,23 +243,23 @@ reload_commands :: () {
     start_file(*handler, short_name, COMMANDS_PATH, false);
     if !handler.failed {
         table_reset(*commands);
-        free(commands_text);
+        for commands_texts {
+            free(it);
+        }
+        array_reset_keeping_memory(*commands_texts);
 
-        commands_text = handler.file_data_to_free;
+        array_add(*commands_texts, handler.file_data_to_free);
         handler.file_data_to_free = "";
     }
 
     while true {
-        line, found := consume_next_line(*handler);
-        if !found break;   // consume_next_line returns false for 'found' when we are done.
-
-        command_part, response := break_by_spaces(line);   // break_by_spaces gives us two strings, the one before whitespace, and the one after.
-        if !response {
-            error(handler, "Expected a space and the response after the command specifier.");
-            continue;
-        }
+        command_part, response, response_needs_free, end := consume_next_multi_line(*handler);
+        if end break;
+        if !command_part continue;
+        if response_needs_free array_add(*commands_texts, response);
 
         remainder := command_part;
+        found := true;
         while found {
             command: string;
             found, command, remainder = split_from_left(remainder, #char ",");
@@ -300,21 +297,20 @@ reload_patterns :: () {
             uninit(*it.expression);
         }
         array_reset(*patterns);
-        free(patterns_text);
+        for patterns_texts {
+            free(it);
+        }
+        array_reset_keeping_memory(*patterns_texts);
 
-        patterns_text = handler.file_data_to_free;
+        array_add(*patterns_texts, handler.file_data_to_free);
         handler.file_data_to_free = "";
     }
 
     while true {
-        line, found := consume_next_line(*handler);
-        if !found break;   // consume_next_line returns false for 'found' when we are done.
-
-        pattern, response := break_by_spaces(line);   // break_by_spaces gives us two strings, the one before whitespace, and the one after.
-        if !response {
-            error(handler, "Expected a space and the response after the pattern.");
-            continue;
-        }
+        pattern, response, response_needs_free, end := consume_next_multi_line(*handler);
+        if end break;
+        if !pattern continue;
+        if response_needs_free array_add(*patterns_texts, response);
 
         expression, success := compile(pattern);
         if !success {
@@ -335,6 +331,48 @@ reload_patterns :: () {
     }
 
     log("Loaded % patterns", patterns.count);
+}
+
+consume_next_multi_line :: (handler: *Text_File_Handler) -> left_part: string, response: string, response_needs_free: bool, end: bool {
+    line, found := consume_next_line(handler);
+    if !found return "", "", false, true;   // consume_next_line returns false for 'found' when we are done.
+
+    left_part, response := break_by_spaces(line);   // break_by_spaces gives us two strings, the one before whitespace, and the one after.
+    if !response {
+        error(handler, "Expected a space and the response after the command specifier.");
+        return "", "", false, false;
+    }
+
+    response_needs_free := false;
+    if response[response.count-1] == #char "\\" {
+        builder: String_Builder;
+        response.count -= 1;
+        append(*builder, response);
+        continued := true;
+        while continued {
+            line, found := consume_next_line(handler);
+            if !found {
+                error(handler, "Expected a continued command line but reached the end of the file.");
+                free_buffers(*builder);
+                return "", "", false, false;
+            }
+
+            line = trim(line);
+            if line[line.count - 1] == #char "\\" {
+                continued = true;
+                line.count -= 1;
+            } else {
+                continued = false;
+            }
+            append(*builder, " ");
+            append(*builder, line);
+        }
+
+        response = builder_to_string(*builder);
+        response_needs_free = true;
+    }
+
+    return left_part, response, response_needs_free, false;
 }
 
 TWITCH_API_BASE_URL :: "https://api.twitch.tv/helix";
