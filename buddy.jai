@@ -538,11 +538,14 @@ buddy_logger :: (message: string, data: *void, info: Log_Info) {
         });
     }
 
-    if message[message.count-1] != #char "\n" {
-        write_strings(message, "\n", to_standard_error = to_standard_error);
-    } else {
-        write_string(message, to_standard_error = to_standard_error);
-    }
+    color := ifx to_standard_error then Console_Color.RED else Console_Color.BLACK;
+    with_console_color(color, to_standard_error = to_standard_error, code = #code {
+        if message[message.count-1] != #char "\n" {
+            write_strings(message, "\n", to_standard_error = to_standard_error);
+        } else {
+            write_string(message, to_standard_error = to_standard_error);
+        }
+    });
 }
 
 
