@@ -1,6 +1,6 @@
-!project,!about,!topic      Trying to get a basic HTTP server up & running in Jai. (I want to replace all my node.js projects with this eventually.)
+!project,!about,!topic      Improving request handling in my Jai HTTP server framework. (Allowing request handlers to yield while waiting for DB queries and stuff.)
 
-!jai                        Jai is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
+!jai,!language              Jai is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
 !fabman                     https://fabman.io is a company Raphael co-founded. It helps people who run a Makerspace, Fab Lab, or university lab to control access to their equipment, keep track of who has used which machine, etc.
 !sellout,!bezosmoney        Have Amazon Prime and want to sub for free (and also give Bezos less of your money)? Link your account at https://twitch.amazon.com/prime and then go to https://twitch.tv/raphael_luba/subscribe
 !jai_streamers,!streamers   Other people who stream Jai stuff from time to time:\
@@ -12,6 +12,7 @@
                                 https://www.twitch.tv/grishyabish\
                                 https://www.twitch.tv/tsoding\
                                 https://www.twitch.tv/gamedevcraig\
-                                https://www.twitch.tv/resistcorp
+                                https://www.twitch.tv/resistcorp \
+                                https://www.twitch.tv/okmatija
 !compiler_todo              At least the following things still need to get done before we can release Jai to a wider audience: 1) Improve context interoperability when Jai programs load static/dynamic Jai libraries. There might be more things…
 !keyboard                   Yes, Raphael has a keyboard.
