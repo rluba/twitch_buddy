@@ -96,10 +96,10 @@ main :: () {
     reload_patterns();
 
     init(*twitch, event_callback, *credentials, verbose = args.verbose);
-    password := tprint("oauth:%", credentials.access_token);
     while true {
         process_changes(*watcher);
 
+        password := tprint("oauth:%", credentials.access_token);
         connected := ensure_connected_to_server(username, password);
         if connected {
             success = update(*twitch, 5000);
