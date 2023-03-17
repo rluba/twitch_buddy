@@ -1,4 +1,4 @@
-!project,!about,!topic      Improving request handling in my Jai HTTP server framework. (Allowing request handlers to yield while waiting for DB queries and stuff.)
+!project,!about,!topic      Improving the Tracy module (https://github.com/rluba/jai-tracy) and then we’ll try to use that to profile compile-time execution of the Jai Language Server (https://github.com/SogoCZE/jai_language_server) we worked on yesterday.
 
 !jai,!language              Jai is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
 !fabman                     https://fabman.io is a company Raphael co-founded. It helps people who run a Makerspace, Fab Lab, or university lab to control access to their equipment, keep track of who has used which machine, etc.
@@ -16,3 +16,4 @@
                                 https://www.twitch.tv/okmatija
 !compiler_todo              At least the following things still need to get done before we can release Jai to a wider audience: 1) Improve context interoperability when Jai programs load static/dynamic Jai libraries. There might be more things…
 !keyboard                   Yes, Raphael has a keyboard.
+!github                     Raphael’s random GitHub stuff is at https://github.com/rluba

@@ -312,7 +312,7 @@ reload_patterns :: () {
         if !pattern continue;
         if response_needs_free array_add(*patterns_texts, response);
 
-        expression, success := compile(pattern);
+        expression, success := compile(pattern, parse_flags = ParseFlags.LikePerl | .FoldCase);
         if !success {
             error(handler, "Could not compile regular expression");
             continue;

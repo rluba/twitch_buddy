@@ -8,3 +8,4 @@ lov(e(ly)?|ing).+bot            I love you too!
 Mr_Sharkbuddy.*(best|great)     Thanks for recognizing!
 (light|dark|white)\s*(theme|mode|background)     Yes, Raphael has functioning eyes and a properly lit environment. So he can tolerate both dark and light themes. You should try it sometimes.
 vim|theme|editor\b|dotfile        Raphael is using VimR (NeoVim) with the gruvbox theme. If you care about those things, you can find his (messy) neovim config at https://github.com/rluba/neovim-config
+speckflunder                    Raphael’s current MacBook Pro is named Speckflunder because it is thicker than the MBP it replaced, which was named Flunder (because it was very thin).
