@@ -237,6 +237,7 @@ send_uptime :: () {
 reload_commands :: () {
     handler: Text_File_Handler;
     handler.do_version_number = false;
+    handler.strip_comments_from_ends_of_lines = false;
     defer deinit(*handler);
 
     short_name := "Commands";
@@ -253,10 +254,9 @@ reload_commands :: () {
     }
 
     while true {
-        command_part, response, response_needs_free, end := consume_next_multi_line(*handler);
+        command_part, response, end := consume_next_multi_line(*handler, *commands_texts);
         if end break;
         if !command_part continue;
-        if response_needs_free array_add(*commands_texts, response);
 
         remainder := command_part;
         found := true;
@@ -307,10 +307,9 @@ reload_patterns :: () {
     }
 
     while true {
-        pattern, response, response_needs_free, end := consume_next_multi_line(*handler);
+        pattern, response, end := consume_next_multi_line(*handler, *patterns_texts);
         if end break;
         if !pattern continue;
-        if response_needs_free array_add(*patterns_texts, response);
 
         expression, success := compile(pattern, parse_flags = ParseFlags.LikePerl | .FoldCase);
         if !success {
@@ -333,28 +332,54 @@ reload_patterns :: () {
     log("Loaded % patterns", patterns.count);
 }
 
-consume_next_multi_line :: (handler: *Text_File_Handler) -> left_part: string, response: string, response_needs_free: bool, end: bool {
-    line, found := consume_next_line(handler);
-    if !found return "", "", false, true;   // consume_next_line returns false for 'found' when we are done.
+consume_next_line_supporting_escaped_comment_character :: (handler: *Text_File_Handler, strings_to_free: *[..] string) -> (line: string, found: bool) {
+    while true {
+        line, found := consume_next_line(handler);
+        if !found return "", false;   // consume_next_line returns false for 'found' when we are done.
+
+        start_index := 0;
+        while true {
+            comment_index := find_index_from_left(line, handler.comment_character, start_index);
+            if comment_index == -1 break;
+
+            if comment_index && line[comment_index - 1] == #char "\\" {
+                // @Hack: This is quite a mess and memory-inefficient. But it will do for now.
+                // Maybe we should fold this function into consume_next_multi_line?
+                line = join(slice(line, 0, comment_index - 1), slice(line, comment_index, line.count - comment_index)); 
+                array_add(strings_to_free, line);
+                start_index = comment_index;
+            } else {
+                line.count = comment_index;
+                break;
+            }
+        }
+        if !line continue;
+
+        return line, true;
+    }
+}
+
+consume_next_multi_line :: (handler: *Text_File_Handler, strings_to_free: *[..] string) -> left_part: string, response: string, end: bool {
+    line, found := consume_next_line_supporting_escaped_comment_character(handler, strings_to_free);
+    if !found return "", "", true;   // consume_next_line returns false for 'found' when we are done.
 
     left_part, response := break_by_spaces(line);   // break_by_spaces gives us two strings, the one before whitespace, and the one after.
     if !response {
         error(handler, "Expected a space and the response after the command specifier.");
-        return "", "", false, false;
+        return "", "", false;
     }
 
-    response_needs_free := false;
     if response[response.count-1] == #char "\\" {
         builder: String_Builder;
         response.count -= 1;
         append(*builder, response);
         continued := true;
         while continued {
-            line, found := consume_next_line(handler);
+            line, found := consume_next_line_supporting_escaped_comment_character(handler, strings_to_free);
             if !found {
                 error(handler, "Expected a continued command line but reached the end of the file.");
                 free_buffers(*builder);
-                return "", "", false, false;
+                return "", "", false;
             }
 
             line = trim(line);
@@ -369,10 +394,10 @@ consume_next_multi_line :: (handler: *Text_File_Handler) -> left_part: string, r
         }
 
         response = builder_to_string(*builder);
-        response_needs_free = true;
+        array_add(strings_to_free, response);
     }
 
-    return left_part, response, response_needs_free, false;
+    return left_part, response, false;
 }
 
 TWITCH_API_BASE_URL :: "https://api.twitch.tv/helix";
