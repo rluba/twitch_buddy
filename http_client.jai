@@ -114,6 +114,8 @@ read_array :: (ptr: *u8, size: size_t, nmemb: size_t, userdata: *void) -> size_t
 	}
 }
 
+#scope_file
+
 #import "Basic";
 #import "String";
 #import "Curl";

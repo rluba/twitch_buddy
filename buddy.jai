@@ -576,7 +576,6 @@ buddy_logger :: (message: string, data: *void, info: Log_Info) {
 
 #load "http_client.jai";
 
-#import "Basic";
 #import "Print_Color";
 #import "Command_Line";
 #import "File";

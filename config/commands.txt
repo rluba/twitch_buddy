@@ -1,19 +1,22 @@
-!project,!about,!topic      Improving the Tracy module (https://github.com/rluba/jai-tracy) and then we’ll try to use that to profile compile-time execution of the Jai Language Server (https://github.com/SogoCZE/jai_language_server) we worked on yesterday.
+!project,!about,!topic,!today     Tried to make progress on re-importing procedure bodies. It’s hard… and we encountered issues, so we switched to improving the Socket module to improve our ability to diagnose network issues. !jai
 
-!jai,!language              Jai is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO 
+!jai,!language              Jai is a new programming language developed by @j_blow. It is designed to be a better alternative to C++ for making games, but it’s also a great systems programming language. There are a series of talks/demos about the language here: https://www.youtube.com/playlist?list=PLmV5I2fxaiCKfxMBrNsU1kgKJXD3PkyxO
 !fabman                     https://fabman.io is a company Raphael co-founded. It helps people who run a Makerspace, Fab Lab, or university lab to control access to their equipment, keep track of who has used which machine, etc.
 !sellout,!bezosmoney        Have Amazon Prime and want to sub for free (and also give Bezos less of your money)? Link your account at https://twitch.amazon.com/prime and then go to https://twitch.tv/raphael_luba/subscribe
 !jai_streamers,!streamers   Other people who stream Jai stuff from time to time:\
                                 https://www.twitch.tv/j_blow\
+                                https://www.twitch.tv/tsoding\
+                                https://www.twitch.tv/ileonte\
                                 https://www.twitch.tv/ropemikad\
                                 https://www.twitch.tv/onelivesleft\
                                 https://www.twitch.tv/landahld\
                                 https://www.twitch.tv/philliptrudeau\
                                 https://www.twitch.tv/grishyabish\
-                                https://www.twitch.tv/tsoding\
                                 https://www.twitch.tv/gamedevcraig\
                                 https://www.twitch.tv/resistcorp \
                                 https://www.twitch.tv/okmatija
 !compiler_todo              At least the following things still need to get done before we can release Jai to a wider audience: 1) Improve context interoperability when Jai programs load static/dynamic Jai libraries. There might be more things…
 !keyboard                   Yes, Raphael has a keyboard.
 !github                     Raphael’s random GitHub stuff is at https://github.com/rluba
+!lsp                        LSP is a god-awful specification and implementation of a well-intentioned idea. But it’s so widespread that you’re basically forced to support it if you want to help people write code in your language. Thanks, Microsoft interns.
+!focus                      Trying the new "Focus" editor by obiwanus (https://github.com/focus-editor/focus).
