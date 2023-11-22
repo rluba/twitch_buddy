@@ -548,6 +548,8 @@ escape_url_param :: (param: string) -> string {
     return param;
 }
 
+#scope_module
+
 buddy_logger :: (message: string, data: *void, info: Log_Info) {
     if !message then return;
 

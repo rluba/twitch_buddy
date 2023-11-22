@@ -86,7 +86,7 @@ is_success_code :: (code: int) -> bool {
 
 write_to_builder :: (ptr: *u8, size: size_t, nmemb: size_t, userdata: *void) -> size_t #c_call {
     new_context: Context;
-    new_context.logger = Context.default_logger;
+    new_context.logger = buddy_logger;
     push_context new_context {
 		builder := cast(*String_Builder) userdata;
 		append(builder, ptr, cast(s64) (size * nmemb));
@@ -100,7 +100,7 @@ dont_write :: (ptr: *u8, size: size_t, nmemb: size_t, userdata: *void) -> size_t
 
 read_array :: (ptr: *u8, size: size_t, nmemb: size_t, userdata: *void) -> size_t #c_call {
     new_context: Context;
-    new_context.logger = Context.default_logger;
+    new_context.logger = buddy_logger;
     push_context new_context {
 		data := cast(*[] u8) userdata;
 		amount := (size * nmemb);
