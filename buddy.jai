@@ -213,7 +213,7 @@ send_command_list :: (used_command: string) {
         append(*builder, " ");
         append(*builder, it);
     }
-    message := builder_to_string(*builder, temp);
+    message := builder_to_string(*builder,, temp);
     cmd_privmsg(*twitch, credentials.channel, message);
 }
 
@@ -484,7 +484,7 @@ try_update_uptime :: (username: string, access_token: string, client_id: string)
     headers[1] = tprint("Client-Id: %", client_id);
 
     response_code, success, response_builder := http_get(streams_url, headers);
-    response := builder_to_string(*response_builder, temp);
+    response := builder_to_string(*response_builder,, temp);
     if !is_success_code(response_code) {
         if response_code == 401 {
             return false, true;
